@@ -1,0 +1,128 @@
+## ISLR Chapter 8 — Tree-Based Methods
+
+Chapter 8 starts from a very different model idea from the linear methods in earlier chapters. Instead of fitting one global equation, a tree partitions the predictor space into a set of regions and then predicts with a simple constant inside each region. In regression, that constant is the mean response in the region; in classification, it is the majority class or the estimated class probabilities in the region. That is why trees are so interpretable: the whole model is just a sequence of if-then splits. But ISLR also makes clear from the start that a **single** tree is usually not the strongest predictor. The second half of the chapter is therefore about ensembles: bagging, random forests, boosting, and BART.
+
+For a regression tree, the model can be written as
+
+$$  
+f(X)=\sum_{m=1}^{M} c_m \cdot 1(X \in R_m),  
+$$
+
+where (R_1,\dots,R_M) are the regions of predictor space and (c_m) is the prediction used in region (R_m). This is the key contrast with linear regression. Linear regression assumes a smooth global form like
+
+$$  
+f(X)=\beta_0+\sum_{j=1}^{p} X_j \beta_j,  
+$$
+
+while a regression tree assumes a piecewise-constant surface. So a tree is not trying to estimate slopes. It is trying to carve predictor space into rectangles and assign one average response to each rectangle.
+
+The central fitting algorithm is **recursive binary splitting**. Suppose we choose a predictor (X_j) and a cutpoint (s). That split divides the data into two regions,
+
+$$  
+R_1(j,s)={X:X_j < s}, \qquad  
+R_2(j,s)={X:X_j \ge s}.  
+$$
+
+For that proposed split, we ask how much the resulting tree would reduce the residual sum of squares. The split is chosen to minimize
+
+$$  
+\sum_{i:x_i \in R_1(j,s)} (y_i-\hat y_{R_1})^2  
++  
+\sum_{i:x_i \in R_2(j,s)} (y_i-\hat y_{R_2})^2,  
+$$
+
+where (\hat y_{R_1}) and (\hat y_{R_2}) are just the mean responses in the two resulting regions. Then each resulting region is split again, and the process continues greedily. “Recursive” means the same idea is applied over and over inside the child nodes; “binary” means each split creates exactly two branches.
+
+It is important to see what the greediness means. A tree does **not** search over every possible full partition of predictor space. That would be computationally impossible. Instead, it chooses the best split available right now, then the best split inside each resulting region, and so on. That makes the algorithm feasible, but it also means the final tree is not guaranteed to be globally optimal. It is a sequence of locally best choices.
+
+A useful mental picture is that regression trees create a step-like prediction surface. In one dimension, the fitted function jumps at the cutpoints. In two dimensions, the feature space is divided into rectangles by axis-aligned splits. This axis-aligned structure is what makes trees interpretable, but it is also one reason they can struggle when the true boundary is diagonal or smoothly curved. ISLR explicitly contrasts this with linear models: if the true structure is roughly linear, a classical linear method can outperform a tree; if the true structure is highly nonlinear and interacts in a complicated way, a tree can win.
+
+A fully grown tree usually overfits, so the chapter next explains **pruning**. The naive idea would be to stop growing early, but ISLR argues that this is too short-sighted: a split that seems weak now may lead to strong later splits. So instead, the preferred strategy is to first grow a large tree (T_0), then prune it back. The formal criterion is **cost complexity pruning**, which chooses a subtree (T \subset T_0) to minimize
+
+$$  
+\sum_{m=1}^{|T|}  
+\sum_{i:x_i \in R_m}  
+(y_i-\hat y_{R_m})^2  
++  
+\alpha |T|.  
+$$
+
+The first term rewards fit; the second penalizes complexity through the number of terminal nodes (|T|). Larger (\alpha) favors smaller trees. Cross-validation is then used to choose the best subtree.
+
+So pruning is conceptually very similar to regularization in Chapter 6. Ridge added a penalty on coefficient size. Here pruning adds a penalty on the number of leaves. In both cases, the model is allowed to be complex only if that complexity earns its keep in fit. The big practical effect is that a smaller pruned tree is often both easier to interpret and better on test data than the huge tree you would get by pursuing training fit alone. ISLR’s Carseats example shows exactly that: pruning slightly improves classification accuracy while also simplifying the tree.
+
+Classification trees work in a parallel way, but the fitting criterion changes. If a region (R_m) contains observations from (K) classes, let
+
+$$  
+\hat p_{mk}  
+$$
+
+be the proportion in node (m) belonging to class (k). The simplest prediction rule at a leaf is: estimate class probabilities by those proportions and assign the observation to the class with the largest one. But for growing the tree, misclassification error is not ideal because it is too insensitive. For example, a split that changes a node from 51/49 to 99/1 may not change the predicted class at all, but it makes the node far purer and therefore much more useful.
+
+That is why ISLR prefers **Gini index** or **entropy** when building classification trees. The Gini index for node (m) is
+
+$$  
+G = \sum_{k=1}^{K} \hat p_{mk}(1-\hat p_{mk}),  
+$$
+
+and the entropy is
+
+$$  
+D = - \sum_{k=1}^{K} \hat p_{mk}\log \hat p_{mk}.  
+$$
+
+Both are small when a node is pure and large when classes are mixed. A good split is one that reduces these impurity measures. The chapter is explicit that even when a split does not lower misclassification error, it may still be worthwhile because it increases node purity substantially, and purity matters for future predictions.
+
+At this point the chapter steps back and evaluates trees as a modeling choice. Their strengths are unusually clear. Trees are easy to explain, easy to display graphically, naturally mirror rule-based human reasoning, and can handle qualitative predictors without dummy-variable encoding. But they also have two major weaknesses: a single tree is often not as accurate as other methods, and trees are non-robust, meaning that small changes in the data can produce a very different fitted tree. Those two weaknesses are exactly what motivate the ensemble methods in the rest of the chapter.
+
+The first ensemble method is **bagging**, short for bootstrap aggregation. The idea is to exploit the fact that trees are high-variance models. If you draw many bootstrap samples from the training data, fit a large tree to each sample, and then average their predictions, the variance can drop a lot. In regression, you average the predicted responses across trees. In classification, you take a majority vote. So bagging is simple: repeat “fit a large tree” many times on bootstrap data, then aggregate.
+
+This works because averaging unstable learners can stabilize them. A single tree may change dramatically if the training data wiggle slightly, but the average across many such trees can be much more stable. ISLR also highlights the **out-of-bag (OOB) error** estimate. Since each bootstrap sample leaves out some observations, each observation can be predicted using only the trees that did not include it. Averaging those predictions yields an OOB prediction, and the resulting OOB MSE or classification error is a valid estimate of test error. With enough trees, the OOB estimate is close to LOOCV, but much cheaper computationally.
+
+Bagging improves prediction, but at the cost of interpretability. You no longer have one small tree you can draw. ISLR partly compensates for this by defining **variable importance**. In bagged regression trees, the importance of a predictor can be summarized by the total amount the RSS is reduced due to splits on that predictor, averaged over the ensemble. In bagged classification trees, the analogous quantity is the total reduction in Gini index. So bagging turns one interpretable object into a less interpretable ensemble, but it still leaves you with at least a ranking of which variables matter most.
+
+The next step is **random forests**, which fix a weakness of bagging. In bagging, if there is one very strong predictor, then many trees will split on it near the top, making the trees highly correlated. Averaging highly correlated predictors does not reduce variance nearly as much as averaging weakly correlated ones. Random forests solve this by adding extra randomness: at each split, instead of considering all (p) predictors, the algorithm considers only a random subset of size (m). Typically (m \approx \sqrt{p}) in classification. This decorrelates the trees and usually improves predictive performance relative to bagging.
+
+That is the key intuition for random forests: bagging says “bootstrap the observations”; random forests say “bootstrap the observations **and** restrict the candidate variables at each split.” The second ingredient forces the ensemble to explore more of model space and prevents one dominant predictor from controlling every tree. So the gain over bagging comes less from bias reduction and more from an extra reduction in variance through decorrelation.
+
+The chapter then turns to **boosting**, which is conceptually very different. Bagging and random forests build many trees independently and then average them. Boosting builds trees **sequentially**. Each new tree is fit to the information the earlier trees missed. In effect, boosting says: start with a simple fit, compute residuals, fit a small tree to those residuals, add that tree into the model with a small learning rate, and repeat many times. ISLR emphasizes three tuning parameters: the number of trees (B), the shrinkage parameter (\lambda), and the interaction depth (d), which controls how complex each small tree is.
+
+The mathematical structure is additive. The boosted model ends up as a sum of many small trees, each one correcting the previous fit a little. That is why boosting with depth-one trees, or stumps, produces an additive model in the predictors. The key intuition is “slow learning”: do not let any one tree fit too hard. Instead, let many weak learners accumulate into a strong one. This often gives excellent predictive performance, but because the trees are being fit to residual structure step by step, boosting can overfit if the number of iterations becomes too large. ISLR explicitly notes that the test error can begin to rise after enough iterations even while training error keeps falling.
+
+So random forests and boosting improve trees in opposite ways. Random forests reduce variance by averaging many decorrelated deep trees built independently. Boosting reduces bias by adding many small trees sequentially, each aimed at the remaining signal. In practice both can perform very well, but they are not just two names for “lots of trees.” They are solving different weaknesses of single trees.
+
+The final method, **Bayesian Additive Regression Trees (BART)**, is the newest and most sophisticated one in the chapter. Like boosting, BART represents the model as a sum of many small trees. But instead of greedily fitting one new tree after another, BART iteratively perturbs a collection of trees and uses those perturbations to explore a posterior distribution over tree ensembles. The model is still additive, but the fitting procedure is Bayesian and stochastic rather than purely stagewise and deterministic.
+
+ISLR summarizes BART with an iterative algorithm. Start with (K) tiny trees whose sum gives an initial fit, then cycle through the trees. For the (k)th tree at iteration (b), compute partial residuals
+
+# $$  
+r_i
+
+## y_i
+
+## \sum_{k' < k} \hat f_k^{,b}(x_i)
+
+\sum_{k' > k} \hat f_{k'}^{,b-1}(x_i),  
+$$
+
+then update that tree by a random perturbation that is favored if it improves the fit. After sweeping through the trees, set
+
+$$  
+\hat f^{,b}(x)=\sum_{k=1}^{K}\hat f_k^{,b}(x).  
+$$
+
+After discarding a burn-in period, average the later fits:
+
+$$  
+\hat f(x)=\frac{1}{B-L}\sum_{b=L+1}^{B}\hat f^{,b}(x).  
+$$
+
+So BART is literally an average over many later iterations of a tree ensemble.
+
+The chapter’s practical message on BART is striking: it often performs extremely well with little tuning. A major reason is that the individual trees are deliberately kept small, and each update is only a perturbation rather than a full aggressive refit. ISLR explicitly contrasts this with boosting: in the Heart example, BART avoids the widening gap between training and test error that signals overfitting in boosting. So BART can be thought of as a more cautious, posterior-averaged additive tree model.
+
+If you compress the chapter to its core, the ideas line up cleanly. A single tree builds an interpretable piecewise-constant model by recursively partitioning feature space. Pruning controls complexity. Classification trees grow by reducing impurity rather than just misclassification rate. Bagging stabilizes trees through bootstrap averaging. Random forests improve bagging by decorrelating trees through random predictor subsets. Boosting builds trees sequentially to fit residual signal. BART also builds an additive tree ensemble, but does so through repeated stochastic perturbation and averaging, which often gives very strong performance with little tuning.
+
+The practical takeaway is that Chapter 8 is really two chapters in one. The first half teaches you how trees think: partition, predict by region, prune, measure impurity. The second half teaches you why a single tree is usually not enough, and how modern tree ensembles recover strong predictive performance by averaging or sequentially combining many weak trees. If Chapter 7 was about adding controlled smooth flexibility to linear models, Chapter 8 is about abandoning global smoothness entirely and letting the model build structure out of rules.
+
+If you want, I’ll do Chapter 9 next in the same format.
