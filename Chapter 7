@@ -1,0 +1,151 @@
+## ISLR Chapter 7 — Moving Beyond Linearity
+
+Chapter 7 asks a very natural question: what do you do when a straight-line model is too rigid, but you still want something more interpretable than a black-box method? The chapter’s answer is to keep the broad linear-model mindset, but replace plain linear terms with more flexible building blocks. The main sequence is polynomial regression, step functions, basis functions, regression splines, smoothing splines, local regression, and then generalized additive models, which combine these one-variable smoothers into a multivariable model.
+
+The first method is **polynomial regression**. Instead of modeling
+
+$$  
+Y = \beta_0 + \beta_1 X + \epsilon,  
+$$
+
+you fit
+
+$$  
+Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \cdots + \beta_d X^d + \epsilon.  
+$$
+
+This is still a **linear model in the coefficients** even though it is nonlinear in (X). That matters because you can still fit it with ordinary least squares, and you still keep the inference tools from Chapter 3. The point is simple: if the relationship bends, let the model bend by adding powers of (X).
+
+A useful way to think about polynomial regression is that it is often the first non-linear extension you should try. A quadratic term lets the curve bend once; a cubic term can create one additional change in curvature. In the Wage example, ISLR compares linear, quadratic, cubic, degree-4, and degree-5 models using ANOVA. The results show that linear is too simple, quadratic improves a lot, cubic improves further, but higher degrees provide little additional benefit. This is a concrete example of the recurring lesson in the book: increase flexibility only until it clearly helps.
+
+But polynomial regression has an obvious weakness: the entire curve is controlled globally. If you increase the degree to get more local flexibility in one part of the predictor range, you often get unstable behavior elsewhere, especially near the boundaries. Chapter 7 later compares a high-degree polynomial to a natural spline and shows that the polynomial can become erratic in the tails. That is the first sign that we want methods whose flexibility is more local.
+
+The next method is **step functions**. Here you cut the range of a predictor into intervals and fit a constant within each interval. If the cutpoints are (c_1,\dots,c_K), then the step-function basis variables are indicator functions such as
+
+$$  
+b_j(x) = I(c_j \le x < c_{j+1}).  
+$$
+
+You are no longer fitting a smooth curve; you are fitting a piecewise constant approximation. For classification, the chapter gives the logistic form
+
+# $$  
+\Pr(Y_i > 250 \mid x_i)
+
+\frac{\exp!\left(\beta_0 + \beta_1 C_1(x_i) + \cdots + \beta_K C_K(x_i)\right)}  
+{1 + \exp!\left(\beta_0 + \beta_1 C_1(x_i) + \cdots + \beta_K C_K(x_i)\right)}.  
+$$
+
+The appeal is simplicity, but the drawback is obvious: unless the bins match real structure in the data, a step function can miss smooth trends badly.
+
+At this point the chapter introduces the really important abstraction: **basis functions**. Instead of thinking separately about polynomials, steps, and splines, think of them all as choosing transformations (b_1(X),\dots,b_K(X)) and then fitting
+
+$$  
+y_i = \beta_0 + \beta_1 b_1(x_i) + \beta_2 b_2(x_i) + \cdots + \beta_K b_K(x_i) + \epsilon_i.  
+$$
+
+This is one of the most important ideas in the chapter. Once the basis functions are chosen, the fitting problem becomes an ordinary linear regression problem in transformed predictors. For polynomial regression, the basis functions are powers of (x). For step functions, they are indicators of bins. That means the whole chapter can be viewed as “choose a smarter basis, then do linear regression.”
+
+That viewpoint leads naturally to **regression splines**. The problem with global polynomials is that they bend everywhere at once. Splines fix this by dividing the range of (X) into regions separated by **knots**, and fitting a low-degree polynomial separately within each region. For example, a piecewise cubic model has the form
+
+$$  
+y_i = \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + \beta_3 x_i^3 + \epsilon_i,  
+$$
+
+but with different coefficient values in different regions of the predictor range. If there is a single knot at (c), then you fit one cubic for (x_i < c) and another for (x_i \ge c). More knots give more local flexibility.
+
+The immediate problem with unconstrained piecewise polynomials is that they can jump abruptly at the knots. That looks wrong and usually is wrong. So splines impose continuity conditions. A **degree-(d) spline** is a piecewise degree-(d) polynomial with continuity in derivatives up to degree (d-1) at each knot. In particular, a cubic spline is continuous, has continuous first derivative, and has continuous second derivative at the knots. This is why cubic splines are so popular: they are flexible but still visually smooth. For a cubic spline with (K) knots, ISLR notes that the model uses (K+4) degrees of freedom.
+
+The basis-function representation makes splines much easier to fit than they first appear. A cubic spline with (K) knots can be written as
+
+$$  
+y_i = \beta_0 + \beta_1 b_1(x_i) + \cdots + \beta_{K+3} b_{K+3}(x_i) + \epsilon_i,  
+$$
+
+for an appropriate spline basis. One convenient representation starts with (x, x^2, x^3) and adds one **truncated power basis** function per knot:
+
+# $$  
+h(x,\xi) = (x-\xi)^3_+
+
+\begin{cases}  
+(x-\xi)^3, & x > \xi, \  
+0, & x \le \xi.  
+\end{cases}  
+$$
+
+So fitting a cubic spline is still just least squares, but now on (X, X^2, X^3), and the knot-based truncated terms. This is exactly why the chapter treats splines as a basis-function method rather than as a completely new modeling philosophy.
+
+ISLR then introduces **natural splines**, which are just cubic splines with extra boundary constraints. A natural spline is forced to be linear beyond the boundary knots. This matters because ordinary splines can have high variance near the extremes of the predictor range, where data are sparse. By forcing linearity in the tails, natural splines tend to behave more stably and produce narrower confidence bands at the boundaries. In practice, this is one reason natural splines are often preferred to unrestricted cubic splines.
+
+The chapter also explains how to choose the number and location of knots. More knots mean more flexibility, especially in regions where the function can change rapidly. Knots can be placed where you think the function changes most, but in practice ISLR says it is common to choose degrees of freedom and let the software place knots at quantiles of the data. The Wage example uses cross-validation to compare spline fits with different degrees of freedom and finds that test error flattens out fairly quickly, so only modest flexibility is needed. That is the recurring pattern again: nonlinear methods help, but not infinite wiggliness.
+
+After regression splines, the chapter moves to **smoothing splines**, which arrive from a slightly different direction. Instead of explicitly choosing knots and a spline basis, smoothing splines say: find a function (g(x)) that fits the data well but is not too wiggly. That is done by minimizing
+
+$$  
+\sum_{i=1}^n (y_i - g(x_i))^2  
++  
+\lambda \int g''(t)^2 , dt.  
+$$
+
+The first term rewards fit to the data. The second term penalizes curvature. This is the same “loss plus penalty” logic you saw in ridge and lasso, but now the penalty is on the roughness of the entire curve rather than on coefficient size.
+
+This criterion gives the core intuition for smoothing splines. If (\lambda) is very small, the fit tries hard to interpolate the data and becomes highly flexible. If (\lambda) is large, roughness is heavily penalized and the fit becomes much smoother. So (\lambda) plays the same role that model size or degrees of freedom played in earlier chapters: it is the tuning knob controlling the bias-variance trade-off. In practice, ISLR connects smoothing to **effective degrees of freedom**, which summarize flexibility, and recommends choosing that flexibility level by cross-validation.
+
+Then comes **local regression**, which is conceptually quite different from splines. Splines fit one global model with a chosen basis. Local regression fits a new small weighted regression around each target point (x_0). The algorithm is: choose the nearby points, weight closer points more heavily, fit a weighted least squares line, and use the fitted value at (x_0) as (\hat f(x_0)). In the linear local-regression case, the weighted fit minimizes
+
+$$  
+\sum_{i=1}^n K_{i0}(y_i - \beta_0 - \beta_1 x_i)^2,  
+$$
+
+and then sets
+
+$$  
+\hat f(x_0) = \hat\beta_0 + \hat\beta_1 x_0.  
+$$
+
+So the fitted curve is built point by point out of many small local regressions.
+
+The crucial tuning parameter in local regression is the **span** (s), the fraction of data points used around each target point. A small span means the fit is highly local and can become wiggly. A large span means the fit becomes smoother and more global. So span plays a role very similar to (\lambda) in smoothing splines. ISLR also points out an important weakness: local regression does not scale well to high dimensions. Once you have more than a few predictors, the notion of “nearby points” breaks down because there are too few observations close to any target point. This is the same curse-of-dimensionality issue that hurts nearest neighbors.
+
+All of the methods up to this point mostly fit a flexible relationship between **one** predictor and the response. The chapter’s payoff is **generalized additive models (GAMs)**, which extend this to several predictors while keeping interpretability. In a regression setting, a GAM replaces the linear terms in multiple regression with smooth functions:
+
+$$  
+y_i = \beta_0 + f_1(x_{i1}) + f_2(x_{i2}) + \cdots + f_p(x_{ip}) + \epsilon_i.  
+$$
+
+This is additive because each predictor contributes through its own function, and those contributions are added together. The big benefit is that each (f_j) can be nonlinear, but you can still examine the effect of each variable one at a time while holding the others fixed.
+
+The Wage example makes GAMs concrete. ISLR fits
+
+# $$  
+\text{wage}
+
+\beta_0 + f_1(\text{year}) + f_2(\text{age}) + f_3(\text{education}) + \epsilon,  
+$$
+
+using natural splines for year and age and dummy variables for education. The resulting plots can be read almost like a multiple regression coefficient table, but with curves instead of straight lines: wage rises slightly with year, has a nonlinear age profile, and increases with education. That combination of flexibility and interpretability is exactly why GAMs are so useful.
+
+GAMs also extend naturally to classification. Starting from logistic regression,
+
+# $$  
+\log\left(\frac{p(X)}{1-p(X)}\right)
+
+\beta_0 + \beta_1 X_1 + \cdots + \beta_p X_p,  
+$$
+
+the GAM version is
+
+# $$  
+\log\left(\frac{p(X)}{1-p(X)}\right)
+
+\beta_0 + f_1(X_1) + f_2(X_2) + \cdots + f_p(X_p).  
+$$
+
+So you still model log-odds, but now each predictor can enter through a nonlinear smooth. ISLR illustrates this by modeling the probability that wage exceeds 250 with a logistic GAM involving year, age, and education.
+
+The chapter is quite balanced about the strengths and weaknesses of GAMs. Their advantages are that they can capture nonlinear effects automatically, can improve prediction relative to plain linear models, and still allow you to inspect each variable’s contribution separately. Their main limitation is the word **additive**. If the response depends strongly on interactions between predictors, a purely additive GAM will miss that structure unless you manually add interaction terms or low-dimensional interaction smoothers. So GAMs are a compromise: much more flexible than linear regression, but still much more structured than fully nonparametric multivariate methods.
+
+### What to retain from Chapter 7
+
+The chapter’s core lesson is not just “there are many nonlinear methods.” It is that there are **graded ways** of moving beyond linearity. Polynomial regression bends globally. Step functions approximate by bins. Basis functions unify the whole framework. Regression splines give local flexibility with smooth joins. Natural splines stabilize the tails. Smoothing splines choose smoothness through a roughness penalty. Local regression fits the curve point by point. GAMs take these one-variable smoothers and build an interpretable multivariable model. If you compress the chapter to one sentence, it is this: keep as much linear-model structure as you can, but spend flexibility where the data actually need it.
+
+Next I can do Chapter 8 in the same format.
