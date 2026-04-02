@@ -1,0 +1,153 @@
+## ISLR Chapter 11 — Survival Analysis and Censored Data
+
+Chapter 11 is about a special kind of response variable: **time until an event occurs**. In medicine that event might be death; in business it might be churn, attrition, time to fill, or time until promotion. What makes these problems different from ordinary regression is **censoring**. If the study ends before the event happens, you do not know the true event time, but you still know something useful: the event time is at least as large as the observed follow-up time. ISLR formalizes this by defining the true event time (T), the censoring time (C), and the observed time
+
+$$
+Y = \min(T, C).
+$$
+
+It also defines an indicator
+
+$$
+\delta = I(T \le C),
+$$
+
+so (\delta=1) means the event was observed and (\delta=0) means the observation was censored. The whole chapter is really about how to use both (Y) and (\delta) without pretending censored cases are ordinary completed outcomes.
+
+This is why ordinary regression is not right here. If someone is still employed at the end of your observation window, you do **not** know their eventual time to attrition. You only know they lasted at least that long. Dropping those people throws away information, and treating their observed follow-up time as the true event time is wrong. Survival analysis exists to solve exactly this problem. ISLR explicitly notes that the same issue arises far beyond medicine, including churn-style business problems, which is why this chapter maps so naturally onto HR analytics. 
+
+The first core object is the **survival function**,
+
+$$
+S(t) = \Pr(T > t),
+$$
+
+which is the probability that the event has **not** happened by time (t). This is usually the first thing you want to understand in a survival problem. In employee terms, (S(12)) could mean the probability an employee is still with the company after 12 months. The survival curve is therefore the analogue of a cumulative retention curve.
+
+The difficulty is that censoring makes (S(t)) nontrivial to estimate. A naive estimator like “fraction still around after 20 months” can be too pessimistic if it treats censored people as failures, and another naive estimator can be too optimistic if it simply discards everyone censored before 20 months. ISLR introduces the **risk set** idea to fix this. Let (d_1 < d_2 < \cdots < d_K) be the unique observed event times, let (q_k) be the number of events at time (d_k), and let (r_k) be the number of individuals still at risk just before (d_k). Then the conditional probability of surviving past (d_k), given survival up to just before (d_k), is estimated by
+
+$$
+\Pr(T > d_k \mid T > d_{k-1}) \approx \frac{r_k - q_k}{r_k}.
+$$
+
+Multiplying these conditional survival probabilities gives the **Kaplan–Meier estimator**:
+
+$$
+\hat S_W(d_k)=\prod_{j=1}^{k}\frac{r_j-q_j}{r_j}.
+$$
+
+Between event times, the estimate stays flat, so the Kaplan–Meier curve is a step function.
+
+This is the first big idea of the chapter: survival estimation is built **sequentially in time**. You do not try to estimate everything at once. You move from one event time to the next, updating the estimated probability of surviving past that time using only those people who were still under observation and event-free just beforehand. That sequential view is not just for Kaplan–Meier; ISLR says it is also the foundation for the log-rank test and Cox regression later in the chapter.
+
+Once you can estimate a survival curve for one group, the next question is often whether two groups have different survival curves. That is what the **log-rank test** does. Suppose you want to compare men vs women, or employees in job family A vs B. At each observed event time (d_k), you form a (2\times2) table of who was at risk and who failed in each group. If there is no true difference between the groups, then the expected number of failures in group 1 at time (d_k) is
+
+$$
+\mu_k = \frac{r_{1k}}{r_k} q_k,
+$$
+
+where (r_{1k}) is the number at risk in group 1. ISLR also gives the variance of that count:
+
+$$
+\operatorname{Var}(q_{1k})
+==========================
+
+\frac{q_k(r_{1k}/r_k)(1-r_{1k}/r_k)(r_k-q_k)}{r_k-1}.
+$$
+
+So the log-rank test compares the **observed** failures in group 1 across all event times to the **expected** failures under no group difference. The standardized test statistic is
+
+$$
+W
+=
+
+\frac{\sum_{k=1}^{K}(q_{1k}-\mu_k)}
+{\sqrt{\sum_{k=1}^{K}\operatorname{Var}(q_{1k})}}.
+$$
+
+For large samples, (W) is approximately standard normal under the null hypothesis of no difference in survival between the groups. 
+
+Conceptually, the log-rank test is not comparing average event times directly. It is comparing how the failures unfold **over time**, while respecting the fact that the risk set is shrinking and some observations are censored. That is why it is the right analogue of a two-sample comparison in the survival setting. In the BrainCancer example, ISLR reports a p-value around 0.2 to 0.25 when comparing males and females, so there is no strong evidence of a difference in survival between the two groups.
+
+The chapter then turns from group comparison to regression modeling. This is where the material becomes especially relevant for your work. If you have employee features (X) and want to model time to attrition, time to first disciplinary event, or time to hire, you need a survival regression model. ISLR says it is natural to work through the **hazard function** rather than directly through the survival time. The hazard function is defined as
+
+$$
+h(t)
+====
+
+\lim_{\Delta t \to 0}
+\frac{\Pr(t < T \le t+\Delta t \mid T > t)}{\Delta t}.
+$$
+
+It is the instantaneous event rate just after time (t), given survival up to (t). It is not a probability; it is a rate. A higher hazard means the event is more likely to occur soon, conditional on not having occurred yet.
+
+ISLR then gives one of the most important identities in the chapter:
+
+$$
+h(t) = \frac{f(t)}{S(t)},
+$$
+
+where (f(t)) is the event-time density and (S(t)) is the survival function. So the survival function, density, and hazard function are just three equivalent ways of describing the same distribution of event times. This is why the chapter can move between them freely. In practice, the hazard is especially useful because it is the quantity Cox regression models directly.
+
+The likelihood with censoring is also elegant and worth understanding. For the (i)th observation, if the event is observed, the contribution is the density at (y_i); if the observation is censored, the contribution is the probability of surviving at least until (y_i). ISLR writes this as
+
+$$
+L_i =
+f(y_i)^{\delta_i} S(y_i)^{1-\delta_i}
+=====================================
+
+h(y_i)^{\delta_i} S(y_i).
+$$
+
+So censored observations are not ignored. They contribute survival information up to their censoring time. This is the mathematical expression of the intuition that “still employed at 18 months” is not the same as “unknown.” 
+
+The main regression model in the chapter is the **Cox proportional hazards model**. It assumes
+
+$$
+h(t \mid x_i)
+=============
+
+h_0(t)\exp\left(\sum_{j=1}^{p} x_{ij}\beta_j\right),
+$$
+
+where (h_0(t)) is the **baseline hazard** and is left unspecified. This is a huge part of why the model is useful. You do not need to commit to a particular shape for the baseline hazard over time. You only assume that covariates act multiplicatively on it through the exponential term. That exponential term is the **relative risk**.
+
+The phrase **proportional hazards** comes from the fact that hazard functions for two individuals are proportional over time. If two employees differ by one unit in predictor (x_j), then their hazards differ by a factor of
+
+$$
+e^{\beta_j}.
+$$
+
+That is the key coefficient interpretation. In a Cox model, (\beta_j) is not an additive effect on time; it is a multiplicative effect on the hazard. If (e^{\beta_j}=1.3), then a one-unit increase in that predictor multiplies the hazard by 1.3, meaning a 30% higher instantaneous event rate at every time point, assuming proportional hazards holds.
+
+A beautiful part of the chapter is how Cox estimation avoids specifying (h_0(t)). At an observed event time (y_i), the probability that the (i)th person is the one who fails, among all those still at risk, is
+
+$$
+\frac{\exp\left(\sum_{j=1}^{p} x_{ij}\beta_j\right)}
+{\sum_{i':y_{i'} \ge y_i}\exp\left(\sum_{j=1}^{p} x_{i'j}\beta_j\right)}.
+$$
+
+The baseline hazard cancels. Multiplying these terms over all uncensored observations gives the **partial likelihood**:
+
+$$
+PL(\beta)
+=========
+
+\prod_{i:\delta_i=1}
+\frac{\exp\left(\sum_{j=1}^{p} x_{ij}\beta_j\right)}
+{\sum_{i':y_{i'} \ge y_i}\exp\left(\sum_{j=1}^{p} x_{i'j}\beta_j\right)}.
+$$
+
+Maximizing this gives (\hat\beta) without ever having to estimate a parametric baseline hazard. This is the “magic” ISLR emphasizes. 
+
+That makes Cox regression a very strong default model for HR time-to-event problems. It handles censoring naturally, uses covariates, and produces interpretable hazard ratios. It is exactly the right upgrade when a binary label like “terminate in next 90 days” feels too crude because it throws away timing information. Logistic regression asks whether the event happens in a window. Cox regression asks how the hazard evolves over time, conditional on survival so far.
+
+The chapter also emphasizes the **proportional hazards assumption** itself. If the assumption holds, then for a binary covariate the two log-hazard curves differ by a constant and the survival curves do not cross. If the log hazards cross, proportional hazards is suspect. ISLR explicitly points this out with Figure 11.4. So Cox is flexible about the baseline hazard, but it is not assumption-free: it assumes covariate effects are multiplicative and time-stable on the hazard scale.
+
+Later sections broaden the picture. ISLR notes that the Cox model can also be regularized, connecting Chapter 11 back to Chapter 6. It also highlights additional topics such as survival AUC, choice of time scale, time-dependent covariates, checking the proportional hazards assumption, and survival trees. The last of these is especially relevant given Chapter 8: tree methods can be adapted to survival data by choosing splits that maximize differences in survival between daughter nodes, and this extends further to random survival forests.
+
+### What to retain from Chapter 11
+
+The chapter’s core lesson is that survival analysis is the right framework whenever the outcome is **time to event** and some observations are only partially observed because of censoring. The key objects are the survival function (S(t)), the hazard function (h(t)), the Kaplan–Meier estimator for nonparametric survival curves, the log-rank test for comparing curves between groups, and the Cox proportional hazards model for regression with censoring. If you compress it even further: Kaplan–Meier estimates survival over time, log-rank compares survival between groups, and Cox regression models how predictors change the hazard through hazard ratios.
+
+For your data, Chapter 11 is immediately applicable to problems like time to attrition, time to first disciplinary action, time to fill a requisition, time to candidate drop-out, or time to internal mobility. That is why it is worth learning before you start coding.
