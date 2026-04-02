@@ -57,3 +57,4 @@ For your near-term goal of using internal data to move toward an ML role, the hi
 
 The chapter’s real lesson is that linear regression is the first serious model you should know well because it teaches almost everything that still matters later: how to estimate signal in the presence of noise, how to interpret parameters, how to control for other variables, how to encode categorical data, how to add simple non-linearity and interactions, and how to diagnose a model before moving to something more complex. Even when you later use tree models or gradient boosting, Chapter 3 remains the cleanest way to think about what your features are doing and what can go wrong.
 
+Next I’d suggest we turn this into the Chapter 3 coding companion in base R, using one small internal-style project and one even smaller chapter-specific exercise.
