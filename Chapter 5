@@ -1,0 +1,78 @@
+## ISLR Chapter 5 — Resampling Methods
+
+Chapter 5 is about a practical problem that sits underneath almost every serious modeling workflow: you want to know how well a model will perform on new data, but you usually do **not** have a large separate test set waiting for you. Training error is easy to compute, but it is usually too optimistic because the model was fit specifically to those same observations. Resampling methods solve this by repeatedly withholding part of the data, fitting on the remainder, and measuring error on the held-out part. The two main tools in the chapter are **cross-validation**, which estimates test error, and the **bootstrap**, which estimates the variability of a statistic or fitted quantity.
+
+The first method is the **validation set approach**. You randomly split the available data into a training set and a validation set. You fit the model on the training set, then compute the prediction error on the validation set. In regression this is usually the validation MSE; in classification it is usually the misclassification rate. If you are comparing models of different complexity, such as linear, quadratic, and cubic fits, you can do this split once and compare their validation errors. Conceptually, this is the closest thing to having a miniature test set carved out of the training data.
+
+This method is simple, but ISLR points out two major problems. First, the estimate can be **highly variable**, because it depends heavily on which observations happen to fall into the training half and which into the validation half. A different random split can give noticeably different error estimates and even point to a different “best” model. Second, because the model is being trained on only part of the data, not the full data set, the resulting validation error tends to **overestimate** the true test error for the model you would train using all observations. Those two problems are exactly what motivate cross-validation.
+
+The next refinement is **leave-one-out cross-validation (LOOCV)**. Instead of holding out a big validation set, you hold out just one observation at a time. For observation (i), fit the model on the other (n-1) observations, predict the left-out response, and record the squared error. Then average these over all (n) observations:
+
+$$  
+CV_{(n)}=\frac{1}{n}\sum_{i=1}^n \left(y_i-\hat y_i^{(-i)}\right)^2.  
+$$
+
+Here (\hat y_i^{(-i)}) means the prediction for (y_i) from the model that was fit without observation (i). The key idea is that every observation gets to play the role of “test point” exactly once.
+
+LOOCV fixes much of what went wrong in the simple validation split. Because each training set has size (n-1), the fitted models are almost as data-rich as the model you would fit to the full data set. That makes LOOCV approximately **unbiased** as an estimate of the test error for the full-data fit. It also avoids the arbitrariness of a single train/validation split, because every point is used for validation once rather than some points being permanently excluded from training. For least squares models, ISLR also notes that there is a computational shortcut formula for LOOCV, so it need not always require (n) full refits in principle.
+
+But LOOCV has its own issue: **high variance**. The reason is subtle and important. The (n) fitted models are trained on almost identical data sets, so the resulting error estimates are highly correlated. Averaging highly correlated quantities does not reduce variance very much. So even though LOOCV is low-bias, its estimate of test error can fluctuate more than you might expect. That leads to the next compromise method.
+
+That compromise is **(k)-fold cross-validation**. Here the data are split into (k) roughly equal-sized folds. For fold (j), fit the model on the other (k-1) folds and evaluate it on fold (j). Then average the (k) validation errors:
+
+$$  
+CV_{(k)}=\frac{1}{k}\sum_{j=1}^k \text{MSE}_j.  
+$$
+
+This is the general framework behind the most common real-world model-selection workflow. If (k=5) or (k=10), each model is trained on most of the data, but the held-out sets are still large enough to provide reasonably stable error estimates.
+
+The most important conceptual point in this section is the **bias-variance trade-off in the choice of (k)**. As (k) increases, the training sets get larger, so the cross-validation estimate becomes less biased upward. That is why LOOCV, which uses training sets of size (n-1), is approximately unbiased. But as (k) increases, the fitted models overlap more heavily, and the resulting CV estimates become more correlated, which increases variance. So LOOCV has low bias but higher variance, while the simple validation split has high bias and high variability. ISLR’s practical recommendation is to use (k=5) or (k=10), since these values typically avoid both extreme bias and extreme variance.
+
+One of the nicest parts of Chapter 5 is that it ties cross-validation back to the bias-variance story from Chapter 2. When the chapter compares test error, training error, and 10-fold CV error across models of increasing flexibility, the training error usually falls steadily, but the true test error is often U-shaped. The CV curve is valuable because, although it may slightly under- or overestimate the true test error, it usually gets the **location of the minimum** about right. That means it is often good enough to choose the right level of flexibility even if the exact numerical estimate is imperfect. This is the main reason cross-validation is such a central model-selection tool.
+
+Cross-validation works for **classification** as well as regression. The mechanics are identical: split, fit, predict the held-out observations, average the errors. The only difference is the error measure. Instead of MSE, you usually use the number or proportion of misclassified observations. In LOOCV form, the classification error is written as
+
+$$  
+CV_{(n)}=\frac{1}{n}\sum_{i=1}^n \text{Err}_i,  
+$$
+
+where (\text{Err}_i = I(y_i \neq \hat y_i)). The chapter’s classification examples show the same broad lesson as in regression: the training error alone cannot be trusted to choose model complexity, while CV usually tracks the true test error well enough to identify a sensible model.
+
+The second half of the chapter is the **bootstrap**, which solves a different problem. Cross-validation estimates prediction error. The bootstrap estimates the **uncertainty of a statistic**. Suppose you have a statistic (\hat\alpha) computed from your sample, but no convenient formula for its standard error. The bootstrap repeatedly samples, **with replacement**, from the observed data to create many bootstrap data sets, computes the statistic on each one, and then looks at how much those replicated estimates vary. If the statistic varies a lot across bootstrap samples, it has high uncertainty; if it varies little, it is more stable.
+
+Formally, if you generate (B) bootstrap samples and compute (\hat\alpha^{*1},\ldots,\hat\alpha^{*B}), then the bootstrap estimate of standard error is just the sample standard deviation of those bootstrap replicates:
+
+$$  
+SE_B(\hat\alpha)=  
+\sqrt{  
+\frac{1}{B-1}  
+\sum_{r=1}^B  
+\left(\hat\alpha^{_r}-\bar{\alpha}^_\right)^2  
+},  
+$$
+
+where
+
+$$  
+\bar{\alpha}^*=\frac{1}{B}\sum_{r=1}^B \hat\alpha^{*r}.  
+$$
+
+So the bootstrap is conceptually simple: “pretend the observed sample is the population, resample from it many times, and see how the estimator moves.”
+
+ISLR’s toy example is portfolio allocation. If you invest a fraction (\alpha) in one asset and (1-\alpha) in another, then the variance of the portfolio return is (\text{Var}(\alpha X + (1-\alpha)Y)). The chapter shows that the value minimizing this variance is
+
+$$  
+\alpha=  
+\frac{\text{Var}(Y)-\text{Cov}(X,Y)}  
+{\text{Var}(X)+\text{Var}(Y)-2\text{Cov}(X,Y)}.  
+$$
+
+That gives a point estimate (\hat\alpha), but there is no equally neat off-the-shelf formula for its standard error in general. The bootstrap handles this immediately: resample the ((X,Y)) pairs with replacement, recompute (\hat\alpha) on each bootstrap sample, and use the standard deviation of those values as the bootstrap estimate of (SE(\hat\alpha)).
+
+The chapter then uses the bootstrap on linear regression coefficients. This is useful because, even though linear regression already has standard-error formulas, the bootstrap shows a more general principle: it can estimate uncertainty without leaning on the usual model assumptions in the same way. ISLR notes that the bootstrap can be particularly attractive when standard formulas depend on assumptions that may be questionable, or when there is no simple formula at all. That is why the bootstrap becomes much more valuable once you move beyond plain least squares into more complicated estimators.
+
+The core lesson of Chapter 5 is that resampling methods let you use the data you already have more intelligently. Cross-validation is for estimating **test error** and choosing model complexity. The bootstrap is for estimating **uncertainty** in fitted quantities. They are not interchangeable, and a lot of confusion disappears once you keep that distinction clear. Cross-validation answers “how well will this model predict on new data?” The bootstrap answers “how much would this estimate move if the data had come out differently?”
+
+For your purposes, this chapter is one of the highest-value ones in the book. If you start building models tomorrow, cross-validation is the part you will use immediately to compare candidate models and avoid trusting training performance. The bootstrap will matter slightly less often day-to-day, but it is the cleanest general-purpose tool for uncertainty when formulas are awkward or unavailable. In applied ML work, Chapter 5 is where the workflow starts becoming real: not just fitting models, but evaluating them in a way that actually approximates what happens out of sample.
+
+If you want, I’ll do Chapter 6 in the same format.
