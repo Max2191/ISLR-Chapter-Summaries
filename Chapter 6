@@ -1,0 +1,142 @@
+## ISLR Chapter 6 — Linear Model Selection and Regularization
+
+Chapter 6 starts from a very practical problem: ordinary least squares is often fine when (n \gg p), but it becomes unstable when (p) is not much smaller than (n), and it completely breaks down as a unique solution when (p>n). At the same time, least squares almost never sets coefficients exactly to zero, so it is poor at automatically simplifying a model. ISLR’s answer is to introduce three ways of improving linear models: subset selection, shrinkage methods, and dimension reduction. The goal is not to abandon linear modeling, but to keep its interpretability while reducing variance and unnecessary complexity.
+
+The chapter’s central idea is that a linear model can fail for two different reasons. One is **prediction instability**: if many predictors are available, especially when they are correlated or when (p) is close to (n), then the least-squares coefficients can vary a lot from sample to sample. That means high variance and poor out-of-sample prediction. The other is **interpretability**: many predictors may be irrelevant, but least squares usually keeps them all alive with small nonzero coefficients. Chapter 6 is about controlling both problems by either removing variables, shrinking coefficients, or compressing predictors into a smaller set of directions.
+
+### 1. Subset selection
+
+The most direct idea is: instead of fitting all (p) predictors, choose a subset and fit least squares only on those. The ideal version is **best subset selection**. If you want the best model with exactly (k) predictors, then in principle you examine all (\binom{p}{k}) such models and choose the one with the smallest RSS. Repeating that for (k=0,1,\dots,p) gives a whole sequence of best models, one per model size. The problem is computational: across all sizes there are (2^p) possible subsets, which becomes infeasible very quickly. That is why best subset selection is conceptually clean but often impractical.
+
+A useful way to write the “best subset” goal is
+
+$$  
+\min_{\beta} RSS  
+\quad \text{subject to} \quad  
+\sum_{j=1}^p I(\beta_j \neq 0) \le s.  
+$$
+
+This says: find the coefficients giving the smallest residual sum of squares, but allow at most (s) nonzero coefficients. That indicator-counting constraint is what makes the problem combinatorial and expensive. It is also the bridge to the lasso later in the chapter: the lasso is easier to solve, but it is trying to imitate this same desire for sparsity.
+
+Because best subset selection is expensive, ISLR introduces **forward stepwise selection** and **backward stepwise selection**. Forward stepwise begins with the null model, then adds the best one predictor, then the best additional predictor given that first one, and so on. Backward stepwise begins with the full model and removes the least useful predictor one at a time. These methods search through only about (1 + p(p+1)/2) models rather than (2^p), so they are much faster. But they are greedy. That means they are not guaranteed to recover the globally best subset of a given size. A variable chosen early in forward selection can be hard to escape later, and backward selection is only possible when (n>p) because it starts from the full least-squares model. Forward selection still works when (n<p), which is one reason it matters in high-dimensional problems.
+
+Once you have a collection of candidate models of different sizes, you need to choose one. Chapter 6 emphasizes that training RSS and training (R^2) are useless for this purpose, because they always improve as more predictors are added. What you really want is low **test error**. ISLR gives two ways to estimate that: either direct estimates using validation or cross-validation, or indirect estimates that correct the training error for model size. The latter include (C_p), AIC, BIC, and adjusted (R^2).
+
+For a least-squares model with (d) predictors, Mallows’ (C_p) is
+
+$$  
+C_p = \frac{1}{n}\left(RSS + 2d\hat{\sigma}^2\right).  
+$$
+
+The idea is that training RSS is too optimistic, so (C_p) adds a penalty proportional to model size. If (\hat{\sigma}^2) is a good estimate of the true error variance, then (C_p) is an unbiased estimate of the test MSE. So smaller (C_p) is better.
+
+For least-squares regression, AIC has the same effective form up to constants:
+
+$$  
+AIC = \frac{1}{n}\left(RSS + 2d\hat{\sigma}^2\right).  
+$$
+
+So for this chapter’s setting, (C_p) and AIC are proportional and usually point in the same direction. BIC looks similar,
+
+$$  
+BIC = \frac{1}{n}\left(RSS + \log(n)d\hat{\sigma}^2\right),  
+$$
+
+but because (\log(n) > 2) once (n>7), BIC penalizes model size more heavily and therefore tends to select smaller models than (C_p) or AIC. Adjusted (R^2) works in the opposite direction: you choose the model with the **largest** adjusted (R^2), because it rewards goodness of fit but only if the added predictor improves the fit more than would be expected from mere model expansion.
+
+### 2. Ridge regression
+
+Subset selection removes variables outright. Shrinkage methods take a different approach: keep all predictors, but pull their coefficients toward zero. The first such method is **ridge regression**, which minimizes
+
+$$  
+\sum_{i=1}^n \left(y_i - \beta_0 - \sum_{j=1}^p \beta_j x_{ij}\right)^2
+
+- \lambda \sum_{j=1}^p \beta_j^2.  
+    $$
+    
+
+Equivalently, ridge minimizes
+
+$$  
+RSS + \lambda \sum_{j=1}^p \beta_j^2.  
+$$
+
+The second term is the shrinkage penalty. When (\lambda=0), ridge reduces to ordinary least squares. As (\lambda) grows, the coefficients are pulled closer and closer to zero. Importantly, the intercept is not penalized.
+
+Why does this help? Because ridge trades a little bias for a potentially large reduction in variance. When least squares is unstable, especially when (p) is close to (n), shrinking the coefficients can make predictions much more stable. Chapter 6’s bias-variance picture is exactly the same logic you saw earlier: as (\lambda) increases, bias rises, variance falls, and the test MSE can improve dramatically until the shrinkage becomes too aggressive. So ridge is best when the true relationship is roughly linear but least squares is too noisy.
+
+One very important practical point is that ridge depends on **scale**. Because the penalty is based on the squared coefficients, variables measured in different units can be treated unfairly. ISLR therefore recommends standardizing predictors first:
+
+# $$  
+\tilde{x}_{ij}
+
+\frac{x_{ij}}  
+{\sqrt{\frac{1}{n}\sum_{i=1}^n (x_{ij}-\bar{x}_j)^2}}.  
+$$
+
+After standardization, all predictors are on the same scale, so the penalty acts comparably across them.
+
+A useful intuition comes from a very simple special case. If (X) is diagonal and (n=p), then the least-squares estimate is just (\hat\beta_j = y_j), while ridge becomes
+
+$$  
+\hat\beta_j^{R} = \frac{y_j}{1+\lambda}.  
+$$
+
+So ridge shrinks every coefficient by the same proportion toward zero. It does not set coefficients exactly to zero; it just compresses them. That is why ridge is good for prediction, especially when many predictors each have small or moderate signal, but not ideal if you want an actually sparse, interpretable model.
+
+### 3. The lasso
+
+The lasso looks almost identical to ridge, except it uses an (\ell_1) penalty instead of an (\ell_2) penalty:
+
+$$  
+\sum_{i=1}^n \left(y_i - \beta_0 - \sum_{j=1}^p \beta_j x_{ij}\right)^2
+
+- \lambda \sum_{j=1}^p |\beta_j|.  
+    $$
+    
+
+So the lasso minimizes
+
+$$  
+RSS + \lambda \sum_{j=1}^p |\beta_j|.  
+$$
+
+This small change has a big consequence: the lasso can force some coefficients to be **exactly zero**. That means it performs variable selection as well as shrinkage.
+
+In the same simple special case as above, the lasso solution is
+
+$$  
+\hat\beta_j^{L}=  
+\begin{cases}  
+y_j-\lambda/2, & y_j>\lambda/2, \  
+y_j+\lambda/2, & y_j<-\lambda/2, \  
+0, & |y_j|\le \lambda/2.  
+\end{cases}  
+$$
+
+This is called **soft-thresholding**. The coefficients are pushed toward zero by a fixed amount, and the small ones collapse to exactly zero. That explains why lasso yields sparse models while ridge usually does not.
+
+ISLR also gives a geometric explanation. Ridge and lasso can both be written as constrained problems. Ridge uses a circular or spherical constraint region, while the lasso uses a diamond or cross-polytope with sharp corners. The least-squares contours are ellipses. Ridge usually touches the constraint away from the axes, so coefficients remain nonzero. The lasso often hits a corner, and corners lie on axes, so one or more coefficients become exactly zero. That is the geometric reason variable selection emerges.
+
+When should ridge beat lasso, and vice versa? Chapter 6’s message is simple. If many predictors each contribute a little, ridge often wins because it spreads shrinkage smoothly across all of them. If only a relatively small subset truly matters, lasso often wins because it can zero out the rest. In practice, you do not know this in advance, so cross-validation is used to choose the tuning parameter and sometimes even to decide between ridge and lasso themselves.
+
+### 4. Dimension reduction: PCR and PLS
+
+The third strategy is not to shrink coefficients or choose variables directly, but to replace the original (p) predictors with (M<p) **linear combinations** of them. Then you regress (Y) on those (M) derived predictors rather than on the original variables.
+
+In **principal components regression (PCR)**, those new predictors are the first (M) principal components of (X). The idea is: find directions in predictor space along which the predictors vary the most, then run least squares on those directions. This can work very well when the important information for predicting (Y) is aligned with the directions of highest variation in (X). But PCR is **unsupervised** in how it constructs those directions: it does not use (Y) when building them. So there is no guarantee that the directions explaining the predictors best are also the directions best for predicting the response. Chapter 6 explicitly flags this as PCR’s main weakness. It also stresses that PCR is not feature selection, because each component is usually a linear combination of all original variables. The number of components (M) is typically chosen by cross-validation.
+
+**Partial least squares (PLS)** is introduced as a supervised alternative to PCR. PCR looks only at variation in (X); PLS searches for directions that explain variation in both (X) and (Y). So PLS tries to build low-dimensional directions that are useful for prediction, not just for summarizing the predictors. That often lets it achieve strong predictive performance with fewer components than PCR. ISLR’s lab example notes exactly this: a one-component PLS fit can explain almost as much response variation as a several-component PCR fit because PLS is using the response information while constructing its directions.
+
+### 5. High dimensions
+
+The last part of the chapter asks what changes when (p) becomes large, especially when (p) is close to or greater than (n). The first and most immediate fact is that least squares stops behaving nicely: when (p>n), there is no unique least-squares solution, and the solutions that interpolate the training data can have extremely high variance and poor test performance. This is exactly the setting in which regularization stops being a refinement and becomes essential.
+
+This is why Chapter 6 matters so much. It is the chapter where linear models stop being just “fit all variables and inspect p-values” and become true predictive tools. Once the predictor set is moderately large, you need some mechanism to control complexity. Best subset and stepwise methods do it by removing variables. Ridge and lasso do it by penalizing coefficient size. PCR and PLS do it by replacing the original predictors with a smaller set of directions. All of these are trying to solve the same underlying problem: reduce overfitting without throwing away too much signal.
+
+### What to retain from Chapter 6
+
+If you compress the chapter to its core, the main ideas are these.
+
+Least squares can have excellent bias but terrible variance when the predictor space gets large. Subset methods search for smaller models, but exact best subset selection becomes computationally expensive. (C_p), AIC, BIC, adjusted (R^2), and cross-validation are all attempts to estimate test error instead of trusting training fit. Ridge keeps all variables but stabilizes the fit through (\ell_2) shrinkage. The lasso uses (\ell_1) shrinkage, which can set coefficients exactly to zero and therefore perform variable selection. PCR reduces dimensionality without using the response, while PLS reduces dimensionality in a response-aware way. And once (p) approaches or exceeds (n), some form of regularization or dimension reduction is not optional; it is the price of getting a model that generalizes.
+
