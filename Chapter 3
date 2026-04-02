@@ -4,37 +4,37 @@
 Chapter 3 is where ISLR moves from the general idea of supervised learning into a concrete model that you can actually fit, interpret, and later extend. The chapter is built around a practical question using the Advertising data: can we relate sales to ad spend, how strong is that relationship, which media matter, how large are the effects, how accurate are predictions, is the relationship linear, and do media interact with each other? That framing matters, because the chapter is not really “about lines”; it is about how to turn observed data into a usable predictive and explanatory model.
 
 The starting point is simple linear regression. Here we assume one predictor (X) and one quantitative response (Y), related through  
-[  
-Y = \beta_0 + \beta_1 X + \epsilon.  
-]  
-The intercept (\beta_0) is the expected value of (Y) when (X=0), the slope (\beta_1) is the average change in (Y) for a one-unit increase in (X), and (\epsilon) is the irreducible noise. The least-squares fit chooses (\hat\beta_0) and (\hat\beta_1) to minimize the residual sum of squares,  
-[  
-RSS = \sum_{i=1}^n (y_i-\hat\beta_0-\hat\beta_1x_i)^2.  
-]  
+$$
+Y = \beta_0 + \beta_1 X + \epsilon.
+$$
+The intercept $\beta_0$ is the expected value of (Y) when (X=0), the slope $\beta_1$ is the average change in (Y) for a one-unit increase in (X), and $\epsilon$ is the irreducible noise. The least-squares fit chooses $\hat\beta_0$ and $\hat\beta_1$ to minimize the residual sum of squares,  
+$$
+RSS = \sum_{i=1}^n $y_i-\hat\beta_0-\hat\beta_1x_i$^2.
+$$
 Conceptually, this is the line that makes the observed values sit as close as possible to the fitted line, in squared-error terms.
 
-ISLR then slows down and asks a more statistical question: once you have fitted a slope and intercept, how trustworthy are they? This is where standard errors enter. The book first builds intuition from the sample mean: even if an estimator is unbiased, any one sample can still land above or below the truth. The standard error tells you the typical size of that wobble across repeated samples. For regression, the standard errors of (\hat\beta_0) and (\hat\beta_1) depend on the noise level (\sigma^2), the sample size, and how spread out the (x_i) values are. A key intuition from the formula is that slope estimates become more precise when the predictor values are more spread out, because you have more leverage to see a trend. Since (\sigma) is usually unknown, it is estimated by the residual standard error,  
-[  
-RSE = \sqrt{RSS/(n-2)}  
-]  
+ISLR then slows down and asks a more statistical question: once you have fitted a slope and intercept, how trustworthy are they? This is where standard errors enter. The book first builds intuition from the sample mean: even if an estimator is unbiased, any one sample can still land above or below the truth. The standard error tells you the typical size of that wobble across repeated samples. For regression, the standard errors of $\hat\beta_0$ and $\hat\beta_1$ depend on the noise level $\sigma^2$, the sample size, and how spread out the $x_i$ values are. A key intuition from the formula is that slope estimates become more precise when the predictor values are more spread out, because you have more leverage to see a trend. Since $\sigma$ is usually unknown, it is estimated by the residual standard error,  
+$$
+RSE = \sqrt{RSS/(n-2)}
+$$
 in simple regression.
 
 From standard errors, the chapter moves into confidence intervals and hypothesis tests. The 95% confidence interval for a coefficient is presented in the usual approximate form  
-[  
-\hat\beta_j \pm 2 \cdot SE(\hat\beta_j).  
-]  
+$$
+\hat\beta_j \pm 2 \cdot SE$\hat\beta_j$.
+$$
 ISLR’s point is not just computational; it is interpretive. If repeated samples were drawn and an interval built each time, about 95% of those intervals would contain the true coefficient. This gives a practical way to talk about plausible values for the effect size. The same machinery gives a t-statistic for testing whether a coefficient is zero,  
-[  
-t = \hat\beta_j / SE(\hat\beta_j),  
-]  
+$$
+t = \hat\beta_j / SE$\hat\beta_j$,
+$$
 and a p-value that measures how surprising an estimate that large would be if the true coefficient were actually zero. In Chapter 3 terms, this is how the book formalizes questions like “is there really a relationship?” rather than merely “did the fitted line slope upward?”
 
-The chapter then distinguishes coefficient accuracy from overall model accuracy. A model can have a meaningful nonzero slope and yet still make poor predictions, and conversely a model can fit reasonably well without every individual coefficient being especially important. ISLR emphasizes two model-level summaries: the residual standard error and (R^2). RSE is the typical size of the residuals in the units of the response. (R^2) is the proportion of variance in the response explained by the fitted model. A value near 1 means the model explains a large share of the variability in (Y); a value near 0 means it explains little. For practical work, this is the first place where the chapter starts looking like applied ML rather than classical statistics: “How wrong am I, on average?” and “How much of the signal am I capturing?” are both baseline model questions you will use constantly.
+The chapter then distinguishes coefficient accuracy from overall model accuracy. A model can have a meaningful nonzero slope and yet still make poor predictions, and conversely a model can fit reasonably well without every individual coefficient being especially important. ISLR emphasizes two model-level summaries: the residual standard error and $R^2$. RSE is the typical size of the residuals in the units of the response. $R^2$ is the proportion of variance in the response explained by the fitted model. A value near 1 means the model explains a large share of the variability in (Y); a value near 0 means it explains little. For practical work, this is the first place where the chapter starts looking like applied ML rather than classical statistics: “How wrong am I, on average?” and “How much of the signal am I capturing?” are both baseline model questions you will use constantly.
 
 Multiple linear regression is where the chapter becomes much more relevant to your actual work. The model generalizes to  
-[  
-Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \cdots + \beta_pX_p + \epsilon.  
-]  
+$$
+Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \cdots + \beta_pX_p + \epsilon.
+$$
 The crucial interpretive move is that each coefficient now represents the effect of one predictor **holding the others fixed**. That is the reason multiple regression is not equivalent to running many separate simple regressions. Separate regressions let each predictor claim shared explanatory power for itself. Multiple regression tries to isolate the partial contribution of each variable after accounting for the others. This is exactly why, in the Advertising example, a predictor can look useful on its own but become unimportant once other predictors are included.
 
 This “holding others fixed” idea is one of the most important concepts in the chapter. It is the basic answer to why regression can sort out overlapping signals. If TV and radio ad spending are both related to sales, and also somewhat related to each other, then a multiple regression coefficient for TV is asking: once I compare cases with similar radio and newspaper values, does changing TV still move sales? That is why the book’s seven questions focus so much on which media matter individually and together. In work terms, this is the same logic you will use when asking whether tenure still matters after controlling for salary band, location, manager, and job family, or whether manager changes still matter after controlling for tenure and performance.
@@ -47,7 +47,7 @@ The “Other Considerations” section is especially important for your workflow
 
 The final core section covers the main ways linear regression can go wrong: non-linearity, correlated errors, non-constant error variance, outliers, high-leverage points, and collinearity. Residual plots are introduced as a first diagnostic tool: if residuals show a pattern, the model is missing structure. Outliers are points with unusually large residuals; high-leverage points are observations with unusual predictor values that can pull the fitted line or plane; collinearity means predictors overlap so much that coefficient estimates become unstable and standard errors inflate. ISLR recommends looking at correlation structure and, more generally, variance inflation factors. A VIF much above about 5 or 10 is presented as a warning sign. This is extremely relevant for internal company data, where many predictors are near-duplicates or different encodings of the same underlying construct.
 
-The chapter ends by circling back to the marketing questions and showing how the full linear regression toolkit answers them: use the F-test for whether there is any relationship at all, RSE and (R^2) for how strong the fit is, t-tests and confidence intervals for which media matter and how large their effects are, and diagnostic plots or interaction terms when an additive linear fit leaves visible structure in the residuals. In other words, Chapter 3 is not merely “fit a line”; it is the full baseline workflow of model specification, estimation, inference, fit assessment, and diagnosis.
+The chapter ends by circling back to the marketing questions and showing how the full linear regression toolkit answers them: use the F-test for whether there is any relationship at all, RSE and $R^2$ for how strong the fit is, t-tests and confidence intervals for which media matter and how large their effects are, and diagnostic plots or interaction terms when an additive linear fit leaves visible structure in the residuals. In other words, Chapter 3 is not merely “fit a line”; it is the full baseline workflow of model specification, estimation, inference, fit assessment, and diagnosis.
 
 ### What matters most for your current work
 
