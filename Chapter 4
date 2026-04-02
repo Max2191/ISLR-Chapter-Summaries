@@ -1,0 +1,182 @@
+## ISLR Chapter 4 — Classification
+
+Chapter 4 begins with a shift in problem type. In Chapter 3, the response variable was quantitative, so predicting a number with a line made sense. In Chapter 4, the response is qualitative: default or no default, up or down, stroke or seizure. That means we are no longer mainly asking “what number should I predict?” but “which class should I assign?” and, even more fundamentally, “what is the probability this observation belongs to each class?” ISLR emphasizes that most useful classifiers do both: they estimate class probabilities first, then convert those probabilities into class labels.
+
+The ideal classifier in theory is the **Bayes classifier**. If we knew the true conditional probabilities, then for a new observation with predictor vector $x_0$, we would assign it to the class with the largest value of
+
+$$  
+\Pr(Y=j\mid X=x_0).  
+$$
+
+This minimizes the test error rate on average. In a two-class problem, that reduces to a simple rule: predict class 1 if
+
+$$  
+\Pr(Y=1\mid X=x_0) > 0.5.  
+$$
+
+So the famous 0.5 threshold is not arbitrary. It comes from the fact that if your only goal is minimizing total misclassification rate, you should choose the most probable class. But ISLR also stresses that this can be the wrong business rule if the two types of mistakes have different costs.
+
+That point matters because overall error rate can be deceptive. Suppose defaults are rare. Then a useless classifier that always predicts “no default” can still have a low error rate simply because most people do not default. In the Default example, ISLR shows that LDA gets a low overall training error, but misses many actual defaulters. This is why the chapter brings in the **confusion matrix**. It separates false positives from false negatives instead of compressing everything into one number. The related terms **sensitivity** and **specificity** sharpen that further: sensitivity is the fraction of true positives correctly found, while specificity is the fraction of true negatives correctly found. A classifier can have excellent specificity and poor sensitivity at the same time.
+
+That leads directly to the first major method: **logistic regression**. ISLR starts by explaining why ordinary linear regression is a poor model for a binary response. If you fit a straight line to a 0/1 target, you can end up with predicted values below 0 or above 1, which are impossible as probabilities. The solution is to model the probability through the logistic function:
+
+$$  
+p(X)=\Pr(Y=1\mid X)=\frac{e^{\beta_0+\beta_1X}}{1+e^{\beta_0+\beta_1X}}.  
+$$
+
+This always stays between 0 and 1, and it gives the familiar S-shaped curve. For very negative values of $\beta_0+\beta_1X$, the probability is near 0; for very positive values, it is near 1.
+
+The next key step is to rewrite logistic regression in terms of **odds**. The odds are
+
+$$  
+\frac{p(X)}{1-p(X)}.  
+$$
+
+If $p(X)=0.2$, the odds are $0.2/0.8=1/4$. If $p(X)=0.9$, the odds are $0.9/0.1=9$. Logistic regression implies
+
+$$  
+\frac{p(X)}{1-p(X)}=e^{\beta_0+\beta_1X}.  
+$$
+
+Taking logs gives
+
+$$  
+\log\left(\frac{p(X)}{1-p(X)}\right)=\beta_0+\beta_1X.  
+$$
+
+This is the real heart of the model: **logistic regression is linear in the log-odds, not in the probability itself**.
+
+That changes how you interpret coefficients. In linear regression, $\beta_1$ is the change in the mean of $Y$ per one-unit increase in $X$. In logistic regression, $\beta_1$ is the change in the **log-odds** per one-unit increase in $X$. Equivalently, increasing $X$ by one unit multiplies the odds by $e^{\beta_1}$. For example, if $\beta_1=0.7$, then a one-unit increase in $X$ multiplies the odds by $e^{0.7}\approx 2.01$. So the odds roughly double. This does **not** mean the probability doubles, because probability and odds are not the same thing. The size of the probability change depends on where you already are on the S-curve.
+
+ISLR then explains estimation. In Chapter 3, least squares chose coefficients that minimized squared error. In logistic regression, the preferred method is **maximum likelihood**. The idea is simple even if the algebra is less familiar: choose coefficients that make the observed class labels as plausible as possible under the model. If an observation actually defaulted, you want the fitted probability for default to be close to 1; if it did not default, you want that fitted probability to be close to 0. The likelihood for the binary case is written as
+
+$$  
+\ell(\beta_0,\beta_1)=\prod_{i:y_i=1} p(x_i)\prod_{i':y_{i'}=0}(1-p(x_{i'})).  
+$$
+
+Maximum likelihood picks the coefficient values that maximize this quantity. ISLR also notes that the output table looks familiar: coefficient estimates, standard errors, a **z-statistic**, and a p-value. The z-statistic plays the same basic role here that the t-statistic played in linear regression.
+
+Once probabilities are fitted, we still need a decision rule. The default rule is to classify to class 1 when $\hat p(x)>0.5$, but Chapter 4 makes a big point of showing that this threshold can and should move when the costs of the two error types differ. In the Default example, lowering the threshold increases the number of predicted defaulters. That worsens false positives, but improves the detection of true defaulters. So thresholding is not a mathematical afterthought; it is a business choice layered on top of a probability model. The ROC curve is useful precisely because it shows what happens to the true positive rate and false positive rate across all possible thresholds. ISLR defines the AUC as the area under this curve and uses it as an overall ranking summary across thresholds.
+
+Multiple logistic regression keeps the same structure but uses several predictors:
+
+$$  
+\log\left(\frac{p(X)}{1-p(X)}\right)=\beta_0+\beta_1X_1+\cdots+\beta_pX_p.  
+$$
+
+The interpretation is the same as in multiple linear regression: each coefficient is a **partial effect**, holding the other predictors fixed. If $X_1$ is balance and $X_2$ is income, then $\beta_1$ tells you how balance changes the log-odds of default when income is held constant. That “holding constant” idea matters just as much here as it did in Chapter 3.
+
+For more than two classes, ISLR extends this to **multinomial logistic regression**. One class is chosen as the baseline, say class $K$, and for each other class $k$ the model is
+
+# $$  
+\log\left(\frac{\Pr(Y=k\mid X=x)}{\Pr(Y=K\mid X=x)}\right)
+
+\beta_{k0}+\beta_{k1}x_1+\cdots+\beta_{kp}x_p.  
+$$
+
+The important point is that the coefficients depend on the choice of baseline, but the fitted probabilities and predictions do not. So changing the baseline changes interpretation, not performance. ISLR also introduces the **softmax** form, which treats all classes symmetrically:
+
+$$  
+\Pr(Y=k\mid X=x)=  
+\frac{e^{\beta_{k0}+\beta_{k1}x_1+\cdots+\beta_{kp}x_p}}  
+{\sum_{l=1}^K e^{\beta_{l0}+\beta_{l1}x_1+\cdots+\beta_{lp}x_p}}.  
+$$
+
+This is worth remembering because it reappears later in machine learning and deep learning.
+
+The chapter then changes viewpoint with **generative models**. Logistic regression directly models $\Pr(Y=k\mid X=x)$. LDA, QDA, and naive Bayes take the opposite route: first model the distribution of the predictors **within each class**, then use Bayes’ theorem to flip that into posterior class probabilities. Bayes’ theorem in this context is
+
+$$  
+p_k(x)=\Pr(Y=k\mid X=x)=  
+\frac{\pi_k f_k(x)}{\sum_{l=1}^K \pi_l f_l(x)},  
+$$
+
+where $\pi_k$ is the prior probability of class $k$ and $f_k(x)$ is the class-conditional density of $X$ in class $k$. So if you can model $f_k(x)$, you can recover the posterior probabilities and classify by whichever class has the largest posterior.
+
+**LDA** starts with a strong but useful assumption. In the one-predictor case, suppose that within class $k$,
+
+$$  
+X\mid Y=k \sim N(\mu_k,\sigma^2),  
+$$
+
+so each class is normal with its own mean but a common variance. Under this assumption, the Bayes rule becomes: assign $x$ to the class with the largest discriminant score
+
+$$  
+\delta_k(x)=x\cdot\frac{\mu_k}{\sigma^2}-\frac{\mu_k^2}{2\sigma^2}+\log(\pi_k).  
+$$
+
+This is linear in $x$, which is where the name **linear discriminant analysis** comes from. In the multivariate case, LDA assumes
+
+$$  
+X\mid Y=k \sim N(\mu_k,\Sigma),  
+$$
+
+where the covariance matrix $\Sigma$ is shared across classes. Then the log posterior odds are linear in $x$, and the discriminant score becomes a linear function of the predictors.
+
+The practical meaning of LDA is this: each class is represented by a Gaussian cloud in feature space, each cloud has its own center $\mu_k$, but they all have the same shape and orientation because they share the same covariance matrix. That shared covariance assumption keeps variance low and makes estimation easier. It also explains why LDA often works surprisingly well even when its assumptions are not perfect.
+
+**QDA** relaxes that shared-covariance assumption. Now each class gets its own covariance matrix, so
+
+$$  
+X\mid Y=k \sim N(\mu_k,\Sigma_k).  
+$$
+
+As a result, the log posterior odds become quadratic rather than linear:
+
+# $$  
+\log\left(\frac{\Pr(Y=k\mid X=x)}{\Pr(Y=K\mid X=x)}\right)
+
+a_k+\sum_{j=1}^p b_{kj}x_j+\sum_{j=1}^p\sum_{l=1}^p c_{kjl}x_jx_l.  
+$$
+
+That makes the decision boundary curved. QDA is more flexible than LDA, but it estimates many more parameters, so it has higher variance. ISLR frames this as a bias-variance trade-off: LDA is safer with limited data, QDA is more attractive when the training set is large enough or when equal covariance is clearly false.
+
+**Naive Bayes** makes a different simplifying assumption. Instead of modeling the full joint density of predictors within each class, it assumes that predictors are conditionally independent given the class:
+
+$$  
+f_k(x)=f_{k1}(x_1)\times f_{k2}(x_2)\times\cdots\times f_{kp}(x_p).  
+$$
+
+Then the posterior becomes
+
+$$  
+\Pr(Y=k\mid X=x)=  
+\frac{\pi_k \prod_{j=1}^p f_{kj}(x_j)}  
+{\sum_{l=1}^K \pi_l \prod_{j=1}^p f_{lj}(x_j)}.  
+$$
+
+This assumption is usually false in a literal sense, but it can still work very well because it dramatically reduces variance. ISLR’s point is that naive Bayes is strong when $p$ is large or $n$ is small enough that estimating the full joint structure would be unstable. It is a good example of a biased model winning because it is low variance.
+
+The comparison section ties these methods together nicely. Logistic regression and LDA are actually very similar in one key sense: both imply that the log posterior odds are linear in the predictors. The difference is in how they get there. Logistic regression estimates coefficients directly by maximum likelihood. LDA gets them indirectly by assuming Gaussian class-conditional densities and applying Bayes’ theorem. QDA makes the log posterior odds quadratic. Naive Bayes makes them additive in transformed one-dimensional predictor contributions. KNN, by contrast, is completely non-parametric: it estimates class probability by looking at the nearby training points. This makes KNN flexible, but also data-hungry and sensitive to the choice of $K$.
+
+Finally, Chapter 4 broadens out into **generalized linear models**, especially **Poisson regression** for count data. If $Y$ is a count, it is natural to assume a Poisson distribution:
+
+$$  
+\Pr(Y=k)=\frac{e^{-\lambda}\lambda^k}{k!},  
+$$
+
+with
+
+$$  
+E(Y)=\lambda,\qquad \operatorname{Var}(Y)=\lambda.  
+$$
+
+The mean must be positive, so Poisson regression models it through an exponential link:
+
+$$  
+\lambda(X)=E(Y\mid X)=e^{\beta_0+\beta_1X_1+\cdots+\beta_pX_p}.  
+$$
+
+Equivalently,
+
+$$  
+\log(\lambda(X))=\beta_0+\beta_1X_1+\cdots+\beta_pX_p.  
+$$
+
+So Poisson regression is the count-data analogue of logistic regression: the linear predictor lives on a transformed scale, not directly on the mean. A one-unit increase in $X_j$ multiplies the expected count by $e^{\beta_j}$, not adds $\beta_j$ to it. ISLR presents this as a more natural model for counts than ordinary linear regression, while also noting the caveat of overdispersion when the variance exceeds the mean.
+
+### What to retain from Chapter 4
+
+If you compress the chapter to its essentials, the main ideas are these.
+
+Classification is fundamentally about estimating class probabilities, not just labels. The Bayes classifier is the unattainable gold standard. Logistic regression fixes the “probabilities outside 0 to 1” problem by making the **log-odds** linear. LDA and QDA model the predictor distribution within each class and then use Bayes’ theorem. Naive Bayes wins by making a deliberately unrealistic independence assumption that often reduces variance enough to help. Thresholds matter because minimizing total error is not always the same as optimizing the real decision problem. And generalized linear models show that regression and classification are not separate islands: linear regression, logistic regression, and Poisson regression are variations on one structural idea.
